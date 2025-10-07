@@ -11,7 +11,7 @@ import librosa
 import librosa.display
 
 # ------------ 配置区（你可以随时改） ------------
-DEFAULT_AUDIO = r"C:\Users\Regina Sun\Documents\GitHub\Sound-Power\TestAudioInput\Obama.wav"
+DEFAULT_AUDIO = r"C:\Users\Regina Sun\Documents\GitHub\Sound-Power\TestAudioInput\1.m4a"
 
 SR = 16000               # 统一采样率
 FRAME_HOP = 0.02         # 20ms hop
@@ -22,35 +22,42 @@ N_FFT = 2048
 # Karen 的“社会偏见”权重（可迭代调参）
 # 线性打分后走 sigmoid → 0~1
 WEIGHTS = {
-    "authority": {  # 权威：低音高/高响度/低停顿/更稳定
+    "authority": {
         "f0_mean": -0.45,
         "f0_std": -0.10,
         "loudness_db": 0.35,
-        "pause_ratio": -0.30,
+        "pause_ratio": -0.10,          # 原 -0.30 → 降低惩罚，交给细分特征
+        "pause_long_ratio": 0.28,      # 长停顿加分（节奏自信/权威）
+        "filler_like_ratio": -0.35,    # 填充音减分（显得不稳）
         "jitter": -0.20,
     },
-    "trust": {      # 信任：稳定、清晰、噪声低、语速适中
-        "jitter": -0.30,
-        "shimmer": -0.25,
+    "trust": {
+        "jitter": -0.28,               # 略放松
+        "shimmer": -0.20,              # 略放松
         "clarity": 0.30,
-        "speaking_rate_wps": 0.15,
-        "noise_floor_db": -0.10,  # 噪声越高，信任越低
+        "speaking_rate_wps": 0.12,
+        "noise_floor_db": -0.08,
+        "filler_like_ratio": -0.30,    # 填充音损伤“可信”
+        "pause_cv": -0.08              # 节奏过度忽快忽慢会降低可信
     },
-    "clarity": {    # 清晰：高能量瞬变+谱重心合理+rolloff适中
+    "clarity": {
         "clarity": 0.45,
         "spectral_rolloff": -0.05,
         "spectral_centroid": -0.05,
-        "pause_ratio": -0.10,
+        "pause_micro_ratio": -0.08,    # 微停顿太多可能割裂清晰度
+        "pause_ratio": -0.06
     },
-    "fluency": {    # 流畅：少停顿、语速合适、韵律稳定
-        "pause_ratio": -0.40,
-        "speaking_rate_wps": 0.25,
+    "fluency": {
+        "pause_ratio": -0.18,          # 总停顿仍减分，但比原来温和
+        "speaking_rate_wps": 0.22,
         "f0_std": -0.05,
+        "filler_like_ratio": -0.40,    # 流畅度里最重惩罚填充音
+        "pause_long_ratio": 0.10       # 恰当长停顿可视为有节奏的“呼吸”
     },
     "warmth": {     # 亲和：中低音域、响度不过度、抖动不过大
-        "f0_mean": -0.15,
+        "f0_mean": -0.12,
         "loudness_db": 0.10,
-        "jitter": -0.10,
+        "jitter": -0.08,
         "spectral_centroid": -0.10,
     }
 }
@@ -72,17 +79,130 @@ PASS_RULE = {  # 通过条件（可改）
 
 # Karen 的刻薄语句触发规则（简单模板）
 KAREN_SNARKS = [
-    # (条件, 文案)
-    (lambda f,s: f["f0_mean"] > 200 and s["authority"] < 0.5, "High pitch gives me intern vibes."),
-    (lambda f,s: f["pause_ratio"] > 0.20, "Too many pauses—your confidence leaks between silences."),
-    (lambda f,s: f["loudness_db"] < -18, "Speak up. We can't hire whispers."),
+    # 负向触发（阴阳怪气）
+    (lambda f,s: f["f0_mean"] > 200 and s["authority"] < 0.55, "High pitch gives me intern vibes."),
+    (lambda f,s: f["filler_like_ratio"] > 0.04, "The little 'uh' and 'um'—like pebbles in your shoes."),
+    (lambda f,s: f["pause_micro_ratio"] > 0.08 and s["fluency"] < 0.5, "Choppy rhythm. This isn’t a buffering icon."),
+    (lambda f,s: f["loudness_db"] < -18, "Speak up. This is a rally, not a library."),
     (lambda f,s: f["jitter"] > 0.03, "Your voice shakes like my iced latte."),
-    (lambda f,s: f["clarity"] < 0.45, "Muddy articulation. Try separating your words from each other."),
-    (lambda f,s: f["speaking_rate_wps"] < 1.6, "Pick up the pace; we’re not at bedtime stories."),
-    (lambda f,s: f["spectral_centroid"] > 3500, "A little less sizzle, a little more substance."),
+    (lambda f,s: s["trust"] < 0.4 and s["clarity"] < 0.5, "Hard to trust what I can barely parse."),
+    # 正向触发（真鼓励）
+    (lambda f,s: f["pause_long_ratio"] > 0.06 and s["authority"] > 0.6, "Those deliberate pauses? Presidential."),
+    (lambda f,s: s["clarity"] > 0.65 and s["fluency"] > 0.6, "Clean articulation and steady flow—your message lands."),
+    (lambda f,s: s["warmth"] > 0.6 and s["trust"] > 0.55, "You sound like someone people want to follow, not just hear."),
+    (lambda f,s: s["authority"] > 0.7, "Commanding presence. The room moves when you do.")
 ]
 
+
 # ------------ 工具函数 ------------
+def contiguous_runs(mask):
+    """返回 (start_idx, end_idx) 的连续区间，end为包含式"""
+    runs = []
+    i = 0
+    n = len(mask)
+    while i < n:
+        if mask[i]:
+            j = i
+            while j+1 < n and mask[j+1]:
+                j += 1
+            runs.append((i, j))
+            i = j + 1
+        else:
+            i += 1
+    return runs
+
+def estimate_pause_features(y, sr):
+    """
+    返回：
+      pause_ratio         - 静音占比（总停顿时间 / 总时长）
+      pause_long_ratio    - 长停顿（≥350ms）占比
+      pause_micro_ratio   - 微停顿（50–250ms）占比
+      filler_like_ratio   - 疑似填充音占比（短、低能量、voiced、f0稳定）
+      pause_cv            - 停顿时长变异系数（std/mean）
+    """
+    # ---- 帧化 & 能量 ----
+    frame_len = int(sr * FRAME_LEN)      # e.g., 0.04s
+    hop_len   = HOP_LENGTH               # e.g., 0.02s
+    frames = librosa.util.frame(y, frame_length=frame_len, hop_length=hop_len)
+    energy = np.mean(frames**2, axis=0)
+    med = np.median(energy) + 1e-9
+    thr = med * 0.25
+    is_sil = energy < thr  # 静音掩码（基于相对阈值）
+
+    # ---- voicing（用 pyin voiced_prob 近似）----
+    # 用更长一点的窗避免“两周期不足”的警告
+    pyin_frame_len = max(frame_len, int(sr * 0.06))
+    f0, _, vprob = librosa.pyin(
+        y,
+        fmin=librosa.note_to_hz('C2'), fmax=librosa.note_to_hz('C7'),
+        frame_length=pyin_frame_len, hop_length=hop_len
+    )
+    vprob = np.nan_to_num(vprob, nan=0.0)
+    is_voiced = vprob > 0.6
+
+    # f0 稳定性（供填充音识别）
+    f0_s = np.nan_to_num(f0, nan=0.0)
+    f0_diff = np.abs(np.diff(f0_s))
+    f0_diff = np.concatenate([[0.0], f0_diff])  # 对齐长度
+    f0_stable = f0_diff < 3.5  # Hz 阈值
+
+    # ---- 长度对齐（关键修复点）----
+    n = min(len(is_sil), len(is_voiced), len(energy), len(f0_stable))
+    is_sil     = is_sil[:n]
+    is_voiced  = is_voiced[:n]
+    f0_stable  = f0_stable[:n]
+    energy     = energy[:n]
+    low_energy = (energy < (med * 0.6))
+
+    # ---- 统计连续静音段（得到 pause_durs）----
+    runs = contiguous_runs(is_sil)  # [(start, end), ...], end 包含
+    ms_per_hop = (hop_len / sr) * 1000.0
+
+    def dur_ms(a, b):
+        # 区间长度 = 帧数 * hop 时间；包含式区间 → 帧数 = (b - a + 1)
+        return (b - a + 1) * ms_per_hop
+
+    pause_durs = [dur_ms(a, b) for (a, b) in runs]  # ←← 这里就定义了
+    total_time_s = n * (hop_len / sr) + 1e-9
+    pause_time_s = sum(pause_durs) / 1000.0
+
+    # ---- 分箱：long / micro ----
+    long_thr = 350.0   # ms
+    micro_lo, micro_hi = 50.0, 250.0
+
+    long_time_s  = sum(d for d in pause_durs if d >= long_thr) / 1000.0
+    micro_time_s = sum(d for d in pause_durs if micro_lo <= d <= micro_hi) / 1000.0
+
+    # ---- 疑似填充音：非静音 & Voiced & 低能量 & f0稳定，时长 80–300ms ----
+    filler_mask = (~is_sil) & is_voiced & low_energy & f0_stable
+    filler_runs = contiguous_runs(filler_mask)
+    filler_time_s = 0.0
+    for (a, b) in filler_runs:
+        d = dur_ms(a, b)
+        if 80.0 <= d <= 300.0:
+            filler_time_s += d / 1000.0
+
+    # ---- 比例 & 变异系数 ----
+    pause_ratio        = float(pause_time_s  / total_time_s)
+    pause_long_ratio   = float(long_time_s   / total_time_s)
+    pause_micro_ratio  = float(micro_time_s  / total_time_s)
+    filler_like_ratio  = float(filler_time_s / total_time_s)
+
+    if len(pause_durs) >= 2 and np.mean(pause_durs) > 1e-9:
+        pause_cv = float(np.std(pause_durs) / (np.mean(pause_durs) + 1e-9))
+    else:
+        pause_cv = 0.0
+
+    return {
+        "pause_ratio": pause_ratio,
+        "pause_long_ratio": pause_long_ratio,
+        "pause_micro_ratio": pause_micro_ratio,
+        "filler_like_ratio": filler_like_ratio,
+        "pause_cv": pause_cv
+    }
+
+
+
 def sigmoid(z):
     return 1. / (1. + np.exp(-z))
 
@@ -117,10 +237,11 @@ def spectral_features(y, sr):
     return float(centroid), float(rolloff)
 
 def estimate_pitch(y, sr):
-    # 使用 PYIN 提取基频（NaN 会被忽略）
     f0, voiced_flag, voiced_prob = librosa.pyin(
-        y, fmin=librosa.note_to_hz('C2'), fmax=librosa.note_to_hz('C7'),
-        frame_length=int(sr*FRAME_LEN), hop_length=HOP_LENGTH
+        y,
+        fmin=librosa.note_to_hz('C2'), fmax=librosa.note_to_hz('C7'),
+        frame_length=int(sr * 0.06),   # ← 用更长一点的帧长
+        hop_length=HOP_LENGTH
     )
     f0 = f0[~np.isnan(f0)]
     if len(f0) == 0:
@@ -133,13 +254,16 @@ def estimate_pitch(y, sr):
     return f0_mean, f0_std, jitter
 
 def estimate_shimmer(y, sr):
-    # 近似 shimmer：短帧能量的相对波动
     frame_len = int(sr*FRAME_LEN)
     hop_len = HOP_LENGTH
     frames = librosa.util.frame(y, frame_length=frame_len, hop_length=hop_len)
-    amps = np.sqrt(np.mean(frames**2, axis=0)) + 1e-9
-    da = np.abs(np.diff(amps)) / (amps[:-1] + 1e-9)
-    return float(np.mean(da)) if len(da) > 0 else 0.0
+    # 能量幅度（避免0）
+    amps = np.sqrt(np.mean(frames**2, axis=0)) + 1e-6
+    da = np.abs(np.diff(amps)) / np.maximum(amps[:-1], 1e-6)
+    # 用中位数抗极端值，并剪裁到合理范围
+    sh = float(np.median(da))
+    return float(np.clip(sh, 0.0, 0.3))
+
 
 def estimate_noise_floor_db(y, sr):
     # 简单估计：取能量最低的 10% 帧的均值作为“底噪”
@@ -192,26 +316,39 @@ def score_dimensions(feats):
     return dim_scores
 
 def make_karen_comment(feats, dim_scores):
-    lines = []
-    # 命中规则的刻薄话
+    pos, neg = [], []
     for cond, text in KAREN_SNARKS:
         try:
             if cond(feats, dim_scores):
-                lines.append(text)
+                # 简单规则：含有“Presidential/clean/want to follow/Commanding”关键词视作正向
+                if any(k in text for k in ["Presidential", "Clean", "follow", "Commanding", "lands"]):
+                    pos.append(text)
+                else:
+                    neg.append(text)
         except Exception:
             continue
-    # 兜底
-    if not lines:
-        if dim_scores["authority"] < 0.5:
-            lines.append("That’s cute, but we’re looking for someone with more… authority.")
-        else:
-            lines.append("Not bad. Try sounding like you mean it.")
-    # 加一条“假鼓励”
-    if dim_scores["trust"] < 0.5:
-        lines.append("I believe in growth… for other candidates. You’ll get there.")
+
+    # 规则：最多展示3条；优先展示1-2条负向 + 1-2条正向，避免刷屏
+    lines = []
+    if dim_scores["authority"] >= 0.6 or dim_scores["trust"] >= 0.6:
+        # 高分：正面为主，最多1条温和建议
+        lines.extend(pos[:2] or ["Strong stance."])
+        if neg:
+            lines.append("Refine one detail: " + neg[0])
     else:
-        lines.append("See? A little effort goes a long way.")
-    return " ".join(lines)
+        # 低分：负面为主，但保留一条'假鼓励'
+        lines.extend(neg[:2] or ["That’s cute, but we’re looking for someone with more… authority."])
+        if pos:
+            lines.append("Hidden potential: " + pos[0])
+
+    # 加收束语（竞选叙事）
+    if all(dim_scores[k] >= v for k, v in PASS_RULE.items()):
+        lines.append("Campaign verdict: APPROVED. See you on the ballot.")
+    else:
+        lines.append("Campaign verdict: REJECTED. Rally your voice and come back.")
+
+    return " ".join(lines[:4])
+
 
 def pass_fail(dim_scores):
     ok = all(dim_scores[k] >= v for k, v in PASS_RULE.items())
@@ -286,7 +423,9 @@ def main():
     f0_mean, f0_std, jitter = estimate_pitch(y, SR)
     loud_db = rms_db(y)
     energy = moving_energy(y, int(SR*FRAME_LEN), HOP_LENGTH)
-    pause_ratio = estimate_pauses(energy, thresh_ratio=0.25)
+    pause_feats = estimate_pause_features(y, SR)
+    pause_ratio = pause_feats["pause_ratio"]
+
     speaking_rate = estimate_speaking_rate(y, SR)
     centroid, rolloff = spectral_features(y, SR)
     shimmer = estimate_shimmer(y, SR)
@@ -304,7 +443,12 @@ def main():
         "spectral_centroid": centroid,
         "spectral_rolloff": rolloff,
         "noise_floor_db": noise_db,
-        "clarity": clarity
+        "clarity": clarity,
+        "pause_long_ratio": pause_feats["pause_long_ratio"],
+        "pause_micro_ratio": pause_feats["pause_micro_ratio"],
+        "filler_like_ratio": pause_feats["filler_like_ratio"],
+        "pause_cv": pause_feats["pause_cv"],
+
     }
 
     # 打分
@@ -318,9 +462,25 @@ def main():
     out_dir = os.path.join(os.path.dirname(audio_path), "Output")
     os.makedirs(out_dir, exist_ok=True)
     out_json = os.path.join(out_dir, "karen_result.json")
+
+    # ✅ 新增：numpy→Python类型转换
+    def _to_py(o):
+        import numpy as np
+        if isinstance(o, dict):
+            return {k: _to_py(v) for k, v in o.items()}
+        if isinstance(o, (list, tuple)):
+            return [_to_py(v) for v in o]
+        if isinstance(o, (np.floating, np.integer)):
+            return o.item()
+        return o
+
+    # 转换后写出
+    out_payload = _to_py(asdict(card))
     with open(out_json, "w", encoding="utf-8") as f:
-        json.dump(asdict(card), f, ensure_ascii=False, indent=2)
+        json.dump(out_payload, f, ensure_ascii=False, indent=2)
+
     print(f"Profile Card saved to: {out_json}")
+
 
 if __name__ == "__main__":
     main()
