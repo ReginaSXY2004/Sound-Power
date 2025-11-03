@@ -89,11 +89,11 @@ def noise_gate(y, threshold=0.02):
 
 # ============== 主流程 ==============
 def process(infile, outfile,
-            pitch_steps=-8,            # 比 -12 更自然，含蓄
+            pitch_steps=-5,            # 比 -12 更自然，含蓄
             rate=0.97,                 # 微慢
-            grain_ms=220, overlap=0.90, density=1.0, jitter=1.0,
-            ir_sec=4.0, ir_decay=2.3, ir_lp=4000, wet=0.7,
-            final_lp=6500,
+            grain_ms=160, overlap=0.82, density=1.0, jitter=0.5,
+            ir_sec=1.5, ir_decay=2.8, ir_lp=6500, wet=0.18,
+            final_lp=7000,
             use_gate=False, gate_th=0.02,
             use_denoise=True, denoise_strength=0.7):
     # 读 m4a/mp3/wav：librosa + ffmpeg 兜底
@@ -140,5 +140,5 @@ if __name__ == "__main__":
     else:
         # 默认：方便直接点 ▶ 运行
         infile  = r"TestAudioInput\1.m4a"
-        outfile = r"TestAudioOutput\3_abstract.wav"
+        outfile = r"TestAudioOutput\2_abstract.wav"
     process(infile, outfile)

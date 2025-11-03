@@ -1,0 +1,12 @@
+{
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "args": ["-NoExit", "chcp", "65001"]
+    }
+  },
+  "terminal.integrated.env.windows": {
+    "PYTHONUTF8": "1"
+  }
+}
