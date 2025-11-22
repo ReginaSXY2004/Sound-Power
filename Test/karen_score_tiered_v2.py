@@ -21,6 +21,21 @@ print("[DEBUG] karen_response loaded from:", _kr.__file__)
 import numpy as np
 import librosa
 
+# ===== Terminal colors & pretty score =====
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+RESET = "\033[0m"
+
+def color_score(val: float) -> str:
+    """Return colored string for a score value."""
+    if val >= 0.70:
+        return f"{GREEN}{val:.2f}{RESET}"
+    elif val >= 0.50:
+        return f"{YELLOW}{val:.2f}{RESET}"
+    else:
+        return f"{RED}{val:.2f}{RESET}"
+
 # ----------------- Config -----------------
 SR = 16000               # unified sampling rate
 FRAME_HOP = 0.02         # 20ms hop
@@ -30,9 +45,8 @@ N_FFT = 2048
 
 # Optional: set a default audio path here if you don't want to pass CLI arg
 DEFAULT_AUDIO = r"C:\Users\Regina Sun\Documents\GitHub\Sound-Power\TestAudioInput\Obama.wav"  
-# e.g., r"C:\\Users\\Regina Sun\\Documents\\GitHub\\Sound-Power\\TestAudioInput\\1.wav"
 
-# === Core vs Support (Tiering) ===
+#Core vs Support Tiering
 TIER_A_KEYS = {
     "loudness_db",                 # INT-DB
     "pause_mean_s",                # DUR-PSE
@@ -47,14 +61,13 @@ TIER_A_KEYS = {
 # Weights (linear -> sigmoid)
 WEIGHTS = {
     "authority": {
-        "f0_mean": -0.45,
+        "f0_mean": -0.35,
         "f0_std": -0.10,
         "loudness_db": 0.35,
         "pause_ratio": -0.10,
         "pause_long_ratio": 0.28,
         "filler_like_ratio": -0.35,
         "jitter": -0.20,
-        # new
         "pause_in_target_ratio": 0.16,
         "final_f0_drop_st": -0.18,     # more negative (fall) => better
         "final_loud_drop_db": -0.12,   # more negative (fall) => better
@@ -68,7 +81,6 @@ WEIGHTS = {
         "noise_floor_db": -0.08,
         "filler_like_ratio": -0.30,
         "pause_cv": -0.08,
-        # new
         "pause_in_target_ratio": 0.08,
         "final_f0_drop_st": -0.08
     },
@@ -85,15 +97,20 @@ WEIGHTS = {
         "f0_std": -0.05,
         "filler_like_ratio": -0.40,
         "pause_long_ratio": 0.10,
-        # new
         "pause_in_target_ratio": 0.14
     },
     "warmth": {
         "f0_mean": -0.12,
         "loudness_db": 0.10,
         "spectral_centroid": -0.10,
-        # new
         "int_var_std_db": 0.08
+    },
+    "cadence": {
+        "final_f0_drop_st": -0.35, 
+        "final_loud_drop_db": -0.25, 
+        "pause_in_target_ratio": 0.60, 
+        "pause_mean_s": 0.20
+    }
 }
 
 BIASES = {  # per-dimension bias (intercept)
@@ -101,7 +118,8 @@ BIASES = {  # per-dimension bias (intercept)
     "trust": 0.0,
     "clarity": 0.0,
     "fluency": 0.0,
-    "warmth": 0.0
+    "warmth": 0.0,
+    "cadence": 0.0
 }
 
 PASS_RULE = {  # pass conditions
@@ -343,38 +361,41 @@ def estimate_pause_features(y: np.ndarray, sr: int):
 
 def standardize_feature(name: str, val: float) -> float:
     anchors = {
-        "f0_mean": (180, 60),               # Hz
+        "f0_mean": (180, 40),               # Hz
         "f0_std": (35, 20),                 # Hz
         "jitter": (0.02, 0.02),             # ratio
         "shimmer": (0.08, 0.05),            # ratio
         "loudness_db": (-15, 6),            # dBFS
         "pause_ratio": (0.15, 0.15),        # 0~1
-        "speaking_rate_wps": (2.2, 0.7),    # words/s approx
+        "speaking_rate_wps": (2.2, 0.5),    # words/s approx
         "spectral_centroid": (2500, 1200),  # Hz
         "spectral_rolloff": (6000, 2500),   # Hz
         "noise_floor_db": (-40, 8),         # dB
         "clarity": (0.6, 0.2),              # 0~1
-        # new anchors
         "pause_mean_s": (0.9, 0.3),             # target ~0.9s
-        "pause_in_target_ratio": (0.08, 0.06),  # ratio of time in 0.6–1.2s pauses
+        "pause_in_target_ratio": (0.08, 0.04),  # ratio of time in 0.6–1.2s pauses
         "int_var_std_db": (8.0, 3.0),           # healthy dynamics ~6–10 dB
         "final_f0_drop_st": (-1.5, 1.0),        # semitones (more negative better)
         "final_loud_drop_db": (-1.8, 1.2)       # dB (more negative better)
     }
     mu, sd = anchors.get(name, (0.0, 1.0))
     if sd <= 0: sd = 1.0
-    return float((val - mu) / sd)
+    z = (val - mu) / sd
+    z = max(min(z, 3.0), -3.0)
+    return float(z)
 
-def score_dimensions(feats: Dict[str,float]) -> Dict[str,float]:
-    # z-score features
+
+def score_dimensions(feats: Dict[str, float]) -> Dict[str, float]:
     xz = {k: standardize_feature(k, v) for k, v in feats.items()}
     dim_scores = {}
     for dim, wmap in WEIGHTS.items():
         z = BIASES.get(dim, 0.0)
         for fname, w in wmap.items():
             z += w * xz.get(fname, 0.0)
+        z *= 1.8  # amplify contrast
         dim_scores[dim] = float(sigmoid(z))
     return dim_scores
+
 
 def make_karen_comment(feats: Dict[str,float], dim_scores: Dict[str,float]) -> str:
     pos, neg = [], []
@@ -398,24 +419,124 @@ class ProfileCard:
     decision: str
     karen_text: str
 
-def pass_fail(scores: Dict[str,float]) -> str:
-    for k, thr in PASS_RULE.items():
-        if scores.get(k, 0.0) < thr:
-            return "FAIL"
-    return "PASS"
+def pass_fail(scores):
+    dims = ["authority","trust","clarity","fluency","warmth","cadence"]
+    vals = [float(scores.get(k, 0.0)) for k in dims]
+    mean_score = float(np.mean(vals))
+    if mean_score >= 0.7 and min(vals) >= 0.45:
+        return "PASS"
+    elif mean_score >= 0.55:
+        return "BORDERLINE"
+    else:
+        return "FAIL"
 
-def print_ui(scores, feats, decision, karen_text):
-    print("\n[ Calibrating Karen… ]")
-    print("▮" * 10)
-    print(f"\nAuthority : {scores['authority']:.2f}")
-    print(f"Trust     : {scores['trust']:.2f}")
-    print(f"Clarity   : {scores['clarity']:.2f}")
-    print(f"Fluency   : {scores['fluency']:.2f}")
-    print(f"Warmth    : {scores['warmth']:.2f}")
-    print("-" * 72)
-    print(f"Decision: {'🟢 PASS' if decision=='PASS' else '🔴 FAIL'}")
-    print("\nKaren says:")
-    print(karen_text)
+
+
+def _tierA_line(feats: dict) -> str:
+    """Format Tier-A features into one readable line."""
+    def f(k, label, unit="", pct=False, nd=2):
+        v = feats.get(k, None)
+        if v is None: 
+            return None
+        if pct:
+            return f"{label}: {100.0*float(v):.1f}%"
+        return f"{label}: {float(v):.{nd}f}{(' ' + unit) if unit else ''}"
+
+    parts = [
+        f("loudness_db", "Loudness", "dBFS"),
+        f("pause_mean_s", "Avg Pause", "s"),
+        f("pause_in_target_ratio", "1.0s-Pause Window", pct=True),
+        f("speaking_rate_wps", "Speech Rate", "wps"),
+        f("f0_mean", "Pitch Mean", "Hz"),
+        f("int_var_std_db", "Intensity Var", "dB"),
+        f("final_f0_drop_st", "Final Pitch Δ", "st"),
+        f("final_loud_drop_db", "Final Loud Δ", "dB"),
+    ]
+    return " | ".join([p for p in parts if p])
+
+def _tierA_block(feats: dict) -> str:
+    rows = []
+    def add(label, val, unit="", pct=False, nd=2):
+        if val is None: return
+        if pct:
+            rows.append(f"  - {label}: {100.0*float(val):.{1}f}%")
+        else:
+            rows.append(f"  - {label}: {float(val):.{nd}f}{(' ' + unit) if unit else ''}")
+
+    add("Loudness", feats.get("loudness_db"), "dBFS")
+    add("Avg Pause", feats.get("pause_mean_s"), "s")
+    add("1.0s-Pause Window", feats.get("pause_in_target_ratio"), pct=True)
+    add("Speech Rate", feats.get("speaking_rate_wps"), "wps")
+    add("Pitch Mean", feats.get("f0_mean"), "Hz")
+    add("Intensity Var", feats.get("int_var_std_db"), "dB")
+    add("Final Pitch \u0394", feats.get("final_f0_drop_st"), "st")
+    add("Final Loud \u0394", feats.get("final_loud_drop_db"), "dB")
+    return "\n".join(rows)
+
+def _scores_block(scores: dict) -> str:
+    def c(v):
+        # 颜色阈值：>=0.7 绿，0.5~0.7 黄，<0.5 红
+        GREEN="\033[92m"; YELLOW="\033[93m"; RED="\033[91m"; RESET="\033[0m"
+        if v >= 0.7:   return f"{GREEN}{v:.2f}{RESET}"
+        if v >= 0.5:   return f"{YELLOW}{v:.2f}{RESET}"
+        return f"{RED}{v:.2f}{RESET}"
+    lines = [
+        f"  - Authority: {c(scores.get('authority',0.0))}",
+        f"  - Trust    : {c(scores.get('trust',0.0))}",
+        f"  - Clarity  : {c(scores.get('clarity',0.0))}",
+        f"  - Fluency  : {c(scores.get('fluency',0.0))}",
+        f"  - Warmth   : {c(scores.get('warmth',0.0))}",
+        f"  - Cadence  : {c(scores.get('cadence',0.0))}",
+    ]
+    return "\n".join(lines)
+
+
+
+
+
+
+def save_full_report_text(scores, feats, decision, response,
+                          out_path=r"Output\karen_report.txt"):
+    import numpy as np, os
+
+    PASS_DIMS = ["authority","trust","clarity","fluency","warmth","cadence"]
+
+    lines = []
+    # 标题
+    lines.append("[ Presidential Review Board (sim.) ]")
+    lines.append("")
+    # Tier-A block
+    lines.append("[Tier-A]")
+    lines.append(_tierA_block(feats))
+    lines.append("")
+    # Scores block
+    lines.append("[Scores]")
+    lines.append(_scores_block(scores))
+
+    # Mean & Min（和 print_ui() 里一样）
+    vals = [float(scores.get(k, 0.0)) for k in PASS_DIMS]
+    mean_score = float(np.mean(vals)) if vals else 0.0
+    min_score  = float(min(vals)) if vals else 0.0
+    lines.append("")
+    lines.append(f"  → Mean: {color_score(mean_score)}")
+    lines.append(f"  → Min: {color_score(min_score)}")
+    lines.append("-" * 72)
+
+    sym_map = {"PASS": "🟢 PASS", "BORDERLINE": "🟡 BORDERLINE", "FAIL": "🔴 FAIL"}
+    sym = sym_map.get(decision, str(decision))
+    lines.append(f"Decision: {sym}")
+
+    # 加上 Karen 的大段话
+    if response:
+        lines.append("")
+        lines.append("Presidential Review Board says:")
+        lines.append(response.get("karen_text", ""))
+
+    text = "\n".join(lines)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(text)
+
 
 
 def split_by_tier(feats: Dict[str,float]):
@@ -468,6 +589,86 @@ def write_dataset_row(csv_path: str, meta: Dict[str, str], scores: Dict[str,floa
         writer.writeheader()
         writer.writerows(rows)
 
+def export_scores_for_td(
+        authority_score, trust_score, clarity_score, fluency_score, warmth_score, cadence_score,
+        decision, karen_text, feats,
+        out_path):
+
+    # 保证 0~1
+    clamp = lambda x: float(max(0.0, min(1.0, x)))
+
+    # TD 要的六个参数
+    FEATURES_MAP = {
+        "INT_DB":   "loudness_db",
+        "DUR_PSE":  "pause_mean_s",
+        "RATE_SP":  "speaking_rate_wps",
+        "F0":       "f0_mean",
+        "INT_VAR":  "int_var_std_db",
+        "END_CAD":  "final_f0_drop_st"
+    }
+
+    features_payload = {
+        k: float(feats.get(src, 0.0))
+        for k, src in FEATURES_MAP.items()
+    }
+
+    payload = {
+        "scores": {
+            "authority": clamp(authority_score),
+            "trust":     clamp(trust_score),
+            "clarity":   clamp(clarity_score),
+            "fluency":   clamp(fluency_score),
+            "warmth":    clamp(warmth_score),
+            "cadence":   clamp(cadence_score),
+        },
+        "decision": str(decision),
+        "comment":  str(karen_text),
+        "features": features_payload
+    }
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+def print_ui(scores, feats, decision, response):
+        """
+        Simple terminal UI output for debugging.
+        Mirrors the old behavior (Tier-A block + Scores + Decision + Karen text).
+        """
+
+        PASS_DIMS = ["authority","trust","clarity","fluency","warmth","cadence"]
+
+        print("\n" + "-"*72)
+        print("[ Presidential Review Board (sim.) ]\n")
+
+        # Tier A block
+        print("[Tier-A]")
+        print(_tierA_block(feats))
+        print("")
+
+        # Scores
+        print("[Scores]")
+        print(_scores_block(scores))
+
+        # Mean + Min
+        vals = [float(scores.get(k, 0.0)) for k in PASS_DIMS]
+        mean_score = float(np.mean(vals)) if vals else 0.0
+        min_score  = float(min(vals))     if vals else 0.0
+
+        print("")
+        print(f"  → Mean: {color_score(mean_score)}")
+        print(f"  → Min:  {color_score(min_score)}")
+        print("-"*72)
+
+        # Decision
+        sym_map = {"PASS":"🟢 PASS", "BORDERLINE":"🟡 BORDERLINE", "FAIL":"🔴 FAIL"}
+        print(f"Decision: {sym_map.get(decision, decision)}")
+
+        # Karen Text
+        if response:
+            print("\nPresidential Review Board says:")
+            print(response.get("karen_text",""))
+        print("-"*72 + "\n")
 
 def main():
     audio_path = None
@@ -545,6 +746,7 @@ def main():
     clarity_score   = scores.get('clarity', 0.0)
     fluency_score   = scores.get('fluency', 0.0)
     warmth_score    = scores.get('warmth', 0.0)
+    cadence_score   = scores.get('cadence', 0.0)
 
     # --- generate Karen response ---
     responder = KarenResponder(seed=42)
@@ -555,11 +757,14 @@ def main():
         **{k.capitalize(): v for k, v in scores.items()}
     }
 
-    response = responder.generate(scores=scores_for_responder, feats=feats, max_tips=3)
+    response = responder.generate(
+    scores=scores, feats=feats, max_tips=3, external_verdict=decision)
+
+
     karen_text = response.get("karen_text", "Nice delivery. Keep the cadence and clarity.")
 
-    print_ui(scores, feats, decision, karen_text)
-    print("\nTriggered tags:", ", ".join(response.get("tags_triggered", [])))
+    print_ui(scores, feats, decision, response)
+
 
     # assemble payload + save JSON
     A, B = split_by_tier(feats)
@@ -597,39 +802,32 @@ def main():
 
     print(f"\nSaved JSON: {out_json}")
     print(f"Saved CSV : {out_csv}")
-
-    def export_scores_for_td(
-        authority_score, trust_score, clarity_score, fluency_score, warmth_score,
-        decision, karen_text,
-        out_path=r"Output\karen_result_tiered.json"):
-        """
-        保证给 TD 的固定接口。分数要求 0~1 浮点数。
-        """
-        # 安全夹取，避免>1或<0
-        clamp = lambda x: float(max(0.0, min(1.0, x)))
-        payload = {
-                "scores": {
-                    "authority": clamp(authority_score),
-                    "trust": clamp(trust_score),
-                    "clarity": clamp(clarity_score),
-                    "fluency": clamp(fluency_score),
-                    "warmth": clamp(warmth_score),
-                },
-                "decision": str(decision),
-                "comment": str(karen_text)
-            }
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-
-    # 你已有的分数变量（示例）
-    # authority_score, trust_score, clarity_score, fluency_score, warmth_score = ...
-    # final_decision, karen_comment = ...
+  # 统一一个给 TD 使用的 Output 目录（项目根目录下的 Output）
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    td_out_dir = os.path.join(project_root, "Output")
+    os.makedirs(td_out_dir, exist_ok=True)
 
     export_scores_for_td(
-        authority_score, trust_score, clarity_score, fluency_score, warmth_score,
+        authority_score, trust_score, clarity_score, fluency_score, warmth_score, cadence_score,
         decision, karen_text,
-        out_path=r"Output\karen_result_tiered.json"  # <— 路径跟TD一致
-    )    
+        feats,
+        out_path=os.path.join(td_out_dir, "td_scores.json")
+    )
+    
+    save_full_report_text(
+        scores, feats, decision, response,
+        out_path=os.path.join(td_out_dir, "karen_report.txt")
+    )
+
+
+
+
+
+
+
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(main())
+    except Exception as e:
+        print(e)
+        sys.exit(1)
