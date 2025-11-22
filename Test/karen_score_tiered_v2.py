@@ -9,7 +9,7 @@
 #
 # Dependencies: numpy, librosa
 
-import os, sys, csv, json, math, datetime
+import os, sys, csv, json, math, datetime, re
 sys.path.insert(0, os.path.dirname(__file__))  # 让Python能看到当前脚本所在目录
 from dataclasses import dataclass, asdict
 from typing import Dict, Tuple
@@ -497,7 +497,7 @@ def _scores_block(scores: dict) -> str:
 
 def save_full_report_text(scores, feats, decision, response,
                           out_path=r"Output\karen_report.txt"):
-    import numpy as np, os
+    import numpy as np, os, re
 
     PASS_DIMS = ["authority","trust","clarity","fluency","warmth","cadence"]
 
@@ -533,9 +533,14 @@ def save_full_report_text(scores, feats, decision, response,
         lines.append(response.get("karen_text", ""))
 
     text = "\n".join(lines)
+
+    # ★★★ 关键：去掉所有 ANSI 颜色转义序列 ★★★
+    ansi_re = re.compile(r'\x1b\[[0-9;]*m')
+    clean_text = ansi_re.sub('', text)
+
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(text)
+        f.write(clean_text)
 
 
 
