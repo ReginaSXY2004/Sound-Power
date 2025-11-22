@@ -1,0 +1,20 @@
+{
+  "scores": {
+    "authority": 0.30267762371689827,
+    "trust": 0.8515778805726464,
+    "clarity": 0.6038594144619079,
+    "fluency": 0.5969465043336003,
+    "warmth": 0.8711456907509548,
+    "cadence": 0.0007304025285895867
+  },
+  "decision": "FAIL",
+  "comment": "Presidential Review Board (satirical):\nElectability: 🔴 NOT YET. Great draft, wrong microphone.\nEndings collide with the wall—feather the brakes.\nSlow down. The captions are filing a complaint.\nZero chill between ideas—grant one heartbeat.\nTriggered tags: weak_ending_loudness: Endings don’t soften; emotional landing is unclear.; too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; under_paused: Little to no spacing; key points don’t get a beat to resonate.",
+  "features": {
+    "INT_DB": -14.979029485948153,
+    "DUR_PSE": 0.96,
+    "RATE_SP": 4.0,
+    "F0": 188.2785336900199,
+    "INT_VAR": 46.094566345214844,
+    "END_CAD": -3.5820400479087944
+  }
+}
