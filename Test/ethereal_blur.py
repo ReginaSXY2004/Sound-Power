@@ -1,7 +1,3 @@
-# ethereal_blur.py  — clean ethereal + optional denoise + wet/dry reverb
-# 用法：
-#   python ethereal_blur.py "TestAudioInput\1.m4a" "TestAudioOutput\1_abstract.wav"
-
 import sys, numpy as np
 import librosa, soundfile as sf
 from scipy import signal
@@ -138,7 +134,6 @@ if __name__ == "__main__":
     if len(sys.argv) >= 3:
         infile, outfile = sys.argv[1], sys.argv[2]
     else:
-        # 默认：方便直接点 ▶ 运行
         infile  = r"TestAudioInput\1.m4a"
         outfile = r"TestAudioOutput\2_abstract.wav"
     process(infile, outfile)
