@@ -1,0 +1,87 @@
+{
+  "features": {
+    "tierA_core": {
+      "f0_mean": 214.70278178013112,
+      "loudness_db": -21.67603192048025,
+      "speaking_rate_wps": 4.0,
+      "pause_mean_s": 0.3173333333333333,
+      "pause_in_target_ratio": 0.048048048045643235,
+      "int_var_std_db": 8.628135681152344,
+      "final_f0_drop_st": -10.517879387191135,
+      "final_loud_drop_db": 0.5095233917236328
+    },
+    "tierB_support": {
+      "f0_std": 97.38398516112457,
+      "jitter": 0.028567699746824483,
+      "shimmer": 0.11777648329734802,
+      "pause_ratio": 0.23823823822631437,
+      "spectral_centroid": 1468.112601258783,
+      "spectral_rolloff": 2768.1225024975024,
+      "noise_floor_db": -43.259579672388085,
+      "clarity": 0.838676948051948,
+      "pause_long_ratio": 0.2062062061958856,
+      "pause_micro_ratio": 0.02002002001901802,
+      "filler_like_ratio": 0.0,
+      "pause_cv": 1.4545706315061475
+    }
+  },
+  "scores": {
+    "authority": 0.17082255638984478,
+    "trust": 0.7252626435772864,
+    "clarity": 0.7491278788712934,
+    "fluency": 0.6371984662462827,
+    "warmth": 0.4494873171271513,
+    "cadence": 0.3686590131302602
+  },
+  "decision": "FAIL",
+  "karen_text": "Presidential Review Board (satirical):\nElectability: 🔴 NOT YET. Great draft, wrong microphone.\nSlow down. The captions are filing a complaint.\nVibes vibrate; give them a chair.\nEndings collide with the wall—feather the brakes.\nTriggered tags: too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; jittery: Subtle tonal shake; nerves peek through sustained vowels.; weak_ending_loudness: Endings don’t soften; emotional landing is unclear.",
+  "karen_response": {
+    "karen_text": "Presidential Review Board (satirical):\nElectability: 🔴 NOT YET. Great draft, wrong microphone.\nSlow down. The captions are filing a complaint.\nVibes vibrate; give them a chair.\nEndings collide with the wall—feather the brakes.\nTriggered tags: too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; jittery: Subtle tonal shake; nerves peek through sustained vowels.; weak_ending_loudness: Endings don’t soften; emotional landing is unclear.",
+    "verdict": "FAIL",
+    "tags_triggered": [
+      "too_fast",
+      "jittery",
+      "weak_ending_loudness"
+    ],
+    "tags_explained": "Triggered tags: too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; jittery: Subtle tonal shake; nerves peek through sustained vowels.; weak_ending_loudness: Endings don’t soften; emotional landing is unclear.",
+    "action_focus": null,
+    "debug": {
+      "scores_keys_seen": [
+        "authority",
+        "trust",
+        "clarity",
+        "fluency",
+        "warmth",
+        "cadence"
+      ],
+      "feats_sample": {
+        "f0_mean": 214.70278178013112,
+        "speaking_rate_wps": 4.0,
+        "jitter": 0.028567699746824483,
+        "pause_in_target_ratio": 0.048048048045643235,
+        "final_f0_drop_st": -10.517879387191135,
+        "final_loud_drop_db": 0.5095233917236328
+      },
+      "tag_info": [
+        {
+          "tag": "too_fast",
+          "z": 2.571428571428571,
+          "severity": "severe",
+          "note": "Rate above anchor"
+        },
+        {
+          "tag": "jittery",
+          "z": 2.0,
+          "severity": "severe",
+          "note": "Jitter above heuristic threshold"
+        },
+        {
+          "tag": "weak_ending_loudness",
+          "z": 1.9246028264363606,
+          "severity": "severe",
+          "note": "Ending loudness drop insufficient"
+        }
+      ]
+    }
+  }
+}

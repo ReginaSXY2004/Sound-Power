@@ -1,0 +1,30 @@
+{
+  "candidate_id": "#44964",
+  "predicted_role": "Assistant Personality Type",
+  "voice_bias": "feminine / East-Coast Accent? (proxy) / polite under stress",
+  "decision": "FAIL",
+  "scores": {
+    "authority": 0.29584017395973206,
+    "trust": 0.5431671738624573,
+    "clarity": 0.6409658594082949,
+    "fluency": 0.5889563451057833,
+    "warmth": 0.4688241183757782
+  },
+  "features": {
+    "f0_mean": 201.6327514561382,
+    "f0_std": 63.61329387557398,
+    "jitter": 0.03885357932953539,
+    "shimmer": 0.12928077578544617,
+    "loudness_db": -20.70265007019043,
+    "pause_ratio": 0.2747510251823448,
+    "speaking_rate_wps": 4.0,
+    "spectral_centroid": 1433.6986086763861,
+    "spectral_rolloff": 2911.1139555295495,
+    "noise_floor_db": -47.84917449951172,
+    "clarity": 0.8360974985371563,
+    "pause_long_ratio": 0.15172817808577246,
+    "pause_micro_ratio": 0.09958992384008232,
+    "filler_like_ratio": 0.0,
+    "pause_cv": 1.3379560648549005
+  }
+}

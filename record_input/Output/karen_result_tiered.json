@@ -1,0 +1,87 @@
+{
+  "features": {
+    "tierA_core": {
+      "f0_mean": 295.04226656832043,
+      "loudness_db": -16.79856661478683,
+      "speaking_rate_wps": 4.0,
+      "pause_mean_s": 0.3787878787878788,
+      "pause_in_target_ratio": 0.17780748662507329,
+      "int_var_std_db": 26.187469482421875,
+      "final_f0_drop_st": 5.499811678414128,
+      "final_loud_drop_db": 0.9152717590332031
+    },
+    "tierB_support": {
+      "f0_std": 44.08385690198383,
+      "jitter": 0.02046556440485362,
+      "shimmer": 0.0866936668753624,
+      "pause_ratio": 0.41778074864913833,
+      "spectral_centroid": 2465.987630051059,
+      "spectral_rolloff": 4300.671728971963,
+      "noise_floor_db": -78.57668722768932,
+      "clarity": 0.6283377837116155,
+      "pause_long_ratio": 0.36363636362421004,
+      "pause_micro_ratio": 0.042780748661671766,
+      "filler_like_ratio": 0.0,
+      "pause_cv": 1.716433884536321
+    }
+  },
+  "scores": {
+    "authority": 0.039536561565117714,
+    "trust": 0.6423396343331502,
+    "clarity": 0.494883229304932,
+    "fluency": 0.8157715724072657,
+    "warmth": 0.5505554406089822,
+    "cadence": 0.031899033528742
+  },
+  "decision": "FAIL",
+  "karen_text": "Presidential Review Board (satirical):\nElectability: 🔴 NOT YET. Great draft, wrong microphone.\nThe clap line can’t find you—leave a sign.\nSlow down. The captions are filing a complaint.\nEndings collide with the wall—feather the brakes.\nTriggered tags: weak_cadence: Phrase endings don’t land; audience can’t find the clap line.; too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; weak_ending_loudness: Endings don’t soften; emotional landing is unclear.",
+  "karen_response": {
+    "karen_text": "Presidential Review Board (satirical):\nElectability: 🔴 NOT YET. Great draft, wrong microphone.\nThe clap line can’t find you—leave a sign.\nSlow down. The captions are filing a complaint.\nEndings collide with the wall—feather the brakes.\nTriggered tags: weak_cadence: Phrase endings don’t land; audience can’t find the clap line.; too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; weak_ending_loudness: Endings don’t soften; emotional landing is unclear.",
+    "verdict": "FAIL",
+    "tags_triggered": [
+      "weak_cadence",
+      "too_fast",
+      "weak_ending_loudness"
+    ],
+    "tags_explained": "Triggered tags: weak_cadence: Phrase endings don’t land; audience can’t find the clap line.; too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; weak_ending_loudness: Endings don’t soften; emotional landing is unclear.",
+    "action_focus": null,
+    "debug": {
+      "scores_keys_seen": [
+        "authority",
+        "trust",
+        "clarity",
+        "fluency",
+        "warmth",
+        "cadence"
+      ],
+      "feats_sample": {
+        "f0_mean": 295.04226656832043,
+        "speaking_rate_wps": 4.0,
+        "jitter": 0.02046556440485362,
+        "pause_in_target_ratio": 0.17780748662507329,
+        "final_f0_drop_st": 5.499811678414128,
+        "final_loud_drop_db": 0.9152717590332031
+      },
+      "tag_info": [
+        {
+          "tag": "weak_cadence",
+          "z": 6.999811678414128,
+          "severity": "severe",
+          "note": "Ending pitch drop insufficient"
+        },
+        {
+          "tag": "too_fast",
+          "z": 2.571428571428571,
+          "severity": "severe",
+          "note": "Rate above anchor"
+        },
+        {
+          "tag": "weak_ending_loudness",
+          "z": 2.2627264658610025,
+          "severity": "severe",
+          "note": "Ending loudness drop insufficient"
+        }
+      ]
+    }
+  }
+}

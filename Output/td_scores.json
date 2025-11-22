@@ -1,0 +1,20 @@
+{
+  "scores": {
+    "authority": 0.3172953060674153,
+    "trust": 0.8508480785945053,
+    "clarity": 0.5897382476059116,
+    "fluency": 0.7649392251478215,
+    "warmth": 0.46830651178307015,
+    "cadence": 0.7574574665497604
+  },
+  "decision": "BORDERLINE",
+  "comment": "Presidential Review Board (satirical):\nElectability: 🟡 BORDERLINE. The pitch is playable; tune two strings.\nEndings collide with the wall—feather the brakes.\nSlow down. The captions are filing a complaint.\nConfidence wants a chest voice, not karaoke night.\nTriggered tags: weak_ending_loudness: Endings don’t soften; emotional landing is unclear.; too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; high_pitch: Pitch sits high; reads younger/tenser on a debate stage.",
+  "features": {
+    "INT_DB": -17.200916107829826,
+    "DUR_PSE": 0.23488372093023255,
+    "RATE_SP": 4.0,
+    "F0": 282.6616670918159,
+    "INT_VAR": 19.795597076416016,
+    "END_CAD": -3.6730609517021584
+  }
+}

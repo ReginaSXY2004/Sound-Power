@@ -1,0 +1,32 @@
+[ Presidential Review Board (sim.) ]
+
+[Tier-A]
+  - Loudness: -17.20 dBFS
+  - Avg Pause: 0.23 s
+  - 1.0s-Pause Window: 15.1%
+  - Speech Rate: 4.00 wps
+  - Pitch Mean: 282.66 Hz
+  - Intensity Var: 19.80 dB
+  - Final Pitch Δ: -3.67 st
+  - Final Loud Δ: 3.43 dB
+
+[Scores]
+  - Authority: 0.32
+  - Trust    : 0.85
+  - Clarity  : 0.59
+  - Fluency  : 0.76
+  - Warmth   : 0.47
+  - Cadence  : 0.76
+
+  → Mean: 0.62
+  → Min: 0.32
+------------------------------------------------------------------------
+Decision: 🟡 BORDERLINE
+
+Presidential Review Board says:
+Presidential Review Board (satirical):
+Electability: 🟡 BORDERLINE. The pitch is playable; tune two strings.
+Endings collide with the wall—feather the brakes.
+Slow down. The captions are filing a complaint.
+Confidence wants a chest voice, not karaoke night.
+Triggered tags: weak_ending_loudness: Endings don’t soften; emotional landing is unclear.; too_fast: Tempo exceeds the sweet spot; ideas stack faster than ears digest.; high_pitch: Pitch sits high; reads younger/tenser on a debate stage.
